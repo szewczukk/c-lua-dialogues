@@ -1,0 +1,4 @@
+# ClangTidy configuration (linter)
+Checks: 'bugprone-*,clang-analyzer-*,cert-*,readability-*'
+WarningsAsErrors: ''
+HeaderFilterRegex: '.*'
