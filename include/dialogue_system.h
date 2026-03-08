@@ -1,5 +1,4 @@
-#ifndef DIALOGUE_SYSTEM_H
-#define DIALOGUE_SYSTEM_H
+#pragma once
 
 #include <lua.h>
 
@@ -38,5 +37,3 @@ void free_dialogue(DialogueSystem *system);
 bool condition_met(DialogueSystem *system, DialogueResponseOption *option, void *context);
 void invoke_effect(DialogueSystem *system, DialogueResponseOption *option, void *context);
 void goto_part(DialogueSystem *system, const char *stageId);
-
-#endif /* DIALOGUE_SYSTEM_H */
