@@ -96,10 +96,6 @@ DialoguesError read_lua_dialogue(DialogueSystem *system, const char *filename,
 
         read_part(&system->parts[i - 1], system->luaState);
 
-        if (strcmp(system->parts[i - 1].id, "start") == 0) {
-            system->currentPart = &system->parts[i - 1];
-        }
-
         lua_pop(system->luaState, 1);
     }
 

@@ -4,6 +4,7 @@ build/
 *.a
 *.out
 *.dSYM/
+tests/*.o
 
 # Editor / OS
 .DS_Store

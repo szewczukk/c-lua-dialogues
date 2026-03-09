@@ -1,4 +1,5 @@
 -Iinclude
+-Ivendor/Unity/src
 -std=c23
 -Wall
 -Wextra
