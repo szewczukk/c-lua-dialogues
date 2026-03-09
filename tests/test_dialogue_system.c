@@ -3,7 +3,7 @@
 #include <string.h>
 #include <unity.h>
 
-static DialogueSystem system;
+static Dialogue dialogue;
 static bool system_loaded;
 
 /* Test context for verifying condition/effect receive the context pointer. */
@@ -61,42 +61,42 @@ static int test_context_newindex(lua_State *luaState) {
 }
 
 void setUp(void) {
-    memset(&system, 0, sizeof(system));
+    memset(&dialogue, 0, sizeof(dialogue));
     system_loaded = false;
 }
 
 void tearDown(void) {
     if (system_loaded) {
-        free_dialogue(&system);
+        free_dialogue(&dialogue);
         system_loaded = false;
     }
 }
 
 /* read_lua_dialogue: success */
 void test_read_lua_dialogue_success(void) {
-    DialoguesError err = read_lua_dialogue(&system, "tests/fixtures/simple.lua", stub_context_index,
-                                           stub_context_newindex);
+    DialoguesError err = read_lua_dialogue(&dialogue, "tests/fixtures/simple.lua",
+                                           stub_context_index, stub_context_newindex);
     system_loaded = true;
 
     TEST_ASSERT_EQUAL(DIALOGUE_OK, err);
-    TEST_ASSERT_EQUAL(2, system.partsCount);
-    TEST_ASSERT_NOT_NULL(system.parts);
+    TEST_ASSERT_EQUAL(2, dialogue.partsCount);
+    TEST_ASSERT_NOT_NULL(dialogue.parts);
 
-    TEST_ASSERT_EQUAL_STRING("start", system.parts[0].id);
-    TEST_ASSERT_EQUAL_STRING("Hello. Choose an option.", system.parts[0].text);
-    TEST_ASSERT_EQUAL(2, system.parts[0].optionsCount);
-    TEST_ASSERT_EQUAL_STRING("Go to second", system.parts[0].options[0].text);
-    TEST_ASSERT_EQUAL_STRING("second", system.parts[0].options[0].nextId);
-    TEST_ASSERT_EQUAL_STRING("Stay", system.parts[0].options[1].text);
-    TEST_ASSERT_EQUAL_STRING("start", system.parts[0].options[1].nextId);
+    TEST_ASSERT_EQUAL_STRING("start", dialogue.parts[0].id);
+    TEST_ASSERT_EQUAL_STRING("Hello. Choose an option.", dialogue.parts[0].text);
+    TEST_ASSERT_EQUAL(2, dialogue.parts[0].optionsCount);
+    TEST_ASSERT_EQUAL_STRING("Go to second", dialogue.parts[0].options[0].text);
+    TEST_ASSERT_EQUAL_STRING("second", dialogue.parts[0].options[0].nextId);
+    TEST_ASSERT_EQUAL_STRING("Stay", dialogue.parts[0].options[1].text);
+    TEST_ASSERT_EQUAL_STRING("start", dialogue.parts[0].options[1].nextId);
 
-    TEST_ASSERT_EQUAL_STRING("second", system.parts[1].id);
-    TEST_ASSERT_EQUAL(1, system.parts[1].optionsCount);
+    TEST_ASSERT_EQUAL_STRING("second", dialogue.parts[1].id);
+    TEST_ASSERT_EQUAL(1, dialogue.parts[1].optionsCount);
 }
 
 /* read_lua_dialogue: missing file */
 void test_read_lua_dialogue_missing_file(void) {
-    DialoguesError err = read_lua_dialogue(&system, "tests/fixtures/nonexistent.lua",
+    DialoguesError err = read_lua_dialogue(&dialogue, "tests/fixtures/nonexistent.lua",
                                            stub_context_index, stub_context_newindex);
     TEST_ASSERT_EQUAL(DIALOGUE_NOT_FOUND, err);
     /* system was not loaded (lua_close already called on failure) */
@@ -104,103 +104,103 @@ void test_read_lua_dialogue_missing_file(void) {
 
 /* free_dialogue: no crash */
 void test_free_dialogue_no_crash(void) {
-    DialoguesError err = read_lua_dialogue(&system, "tests/fixtures/simple.lua", stub_context_index,
-                                           stub_context_newindex);
+    DialoguesError err = read_lua_dialogue(&dialogue, "tests/fixtures/simple.lua",
+                                           stub_context_index, stub_context_newindex);
     system_loaded = true;
     TEST_ASSERT_EQUAL(DIALOGUE_OK, err);
 
-    free_dialogue(&system);
+    free_dialogue(&dialogue);
     system_loaded = false;
 }
 
 /* goto_part: found */
 void test_goto_part_found(void) {
-    read_lua_dialogue(&system, "tests/fixtures/simple.lua", stub_context_index,
+    read_lua_dialogue(&dialogue, "tests/fixtures/simple.lua", stub_context_index,
                       stub_context_newindex);
     system_loaded = true;
 
-    goto_part(&system, "second");
-    TEST_ASSERT_NOT_NULL(system.currentPart);
-    TEST_ASSERT_EQUAL_STRING("second", system.currentPart->id);
-    TEST_ASSERT_EQUAL_PTR(&system.parts[1], system.currentPart);
+    goto_part(&dialogue, "second");
+    TEST_ASSERT_NOT_NULL(dialogue.currentPart);
+    TEST_ASSERT_EQUAL_STRING("second", dialogue.currentPart->id);
+    TEST_ASSERT_EQUAL_PTR(&dialogue.parts[1], dialogue.currentPart);
 }
 
 /* goto_part: not found leaves currentPart unchanged */
 void test_goto_part_not_found(void) {
-    read_lua_dialogue(&system, "tests/fixtures/simple.lua", stub_context_index,
+    read_lua_dialogue(&dialogue, "tests/fixtures/simple.lua", stub_context_index,
                       stub_context_newindex);
     system_loaded = true;
-    goto_part(&system, "start");
-    DialoguePart *before = system.currentPart;
+    goto_part(&dialogue, "start");
+    DialoguePart *before = dialogue.currentPart;
     TEST_ASSERT_NOT_NULL(before);
 
-    goto_part(&system, "nonexistent");
-    TEST_ASSERT_EQUAL_PTR(before, system.currentPart);
+    goto_part(&dialogue, "nonexistent");
+    TEST_ASSERT_EQUAL_PTR(before, dialogue.currentPart);
 }
 
 /* condition_met: no condition (LUA_NOREF) returns true */
 void test_condition_met_no_condition(void) {
-    read_lua_dialogue(&system, "tests/fixtures/simple.lua", stub_context_index,
+    read_lua_dialogue(&dialogue, "tests/fixtures/simple.lua", stub_context_index,
                       stub_context_newindex);
     system_loaded = true;
-    DialogueResponseOption *opt = &system.parts[0].options[0];
-    bool result = condition_met(&system, opt, NULL);
+    DialogueResponse *response = &dialogue.parts[0].options[0];
+    bool result = condition_met(&dialogue, response, NULL);
     TEST_ASSERT_TRUE(result);
 }
 
 /* condition_met: with condition true/false */
 void test_condition_met_with_condition(void) {
-    read_lua_dialogue(&system, "tests/fixtures/with_condition_effect.lua", stub_context_index,
+    read_lua_dialogue(&dialogue, "tests/fixtures/with_condition_effect.lua", stub_context_index,
                       stub_context_newindex);
     system_loaded = true;
-    DialoguePart *part = &system.parts[0];
+    DialoguePart *part = &dialogue.parts[0];
     /* options[0] = "Always show" (no condition), [1] = "Condition true", [2] = "Condition false" */
-    TEST_ASSERT_TRUE(condition_met(&system, &part->options[0], NULL));
-    TEST_ASSERT_TRUE(condition_met(&system, &part->options[1], NULL));
-    TEST_ASSERT_FALSE(condition_met(&system, &part->options[2], NULL));
+    TEST_ASSERT_TRUE(condition_met(&dialogue, &part->options[0], NULL));
+    TEST_ASSERT_TRUE(condition_met(&dialogue, &part->options[1], NULL));
+    TEST_ASSERT_FALSE(condition_met(&dialogue, &part->options[2], NULL));
 }
 
 /* invoke_effect: no effect (LUA_NOREF) does not crash */
 void test_invoke_effect_no_effect(void) {
-    read_lua_dialogue(&system, "tests/fixtures/simple.lua", stub_context_index,
+    read_lua_dialogue(&dialogue, "tests/fixtures/simple.lua", stub_context_index,
                       stub_context_newindex);
     system_loaded = true;
-    invoke_effect(&system, &system.parts[0].options[0], NULL);
+    invoke_effect(&dialogue, &dialogue.parts[0].options[0], NULL);
 }
 
 /* invoke_effect: with effect does not crash */
 void test_invoke_effect_with_effect(void) {
-    read_lua_dialogue(&system, "tests/fixtures/with_condition_effect.lua", stub_context_index,
+    read_lua_dialogue(&dialogue, "tests/fixtures/with_condition_effect.lua", stub_context_index,
                       stub_context_newindex);
     system_loaded = true;
     /* Part "with_effect" is index 1; option "With effect" is index 1 */
-    invoke_effect(&system, &system.parts[1].options[1], NULL);
+    invoke_effect(&dialogue, &dialogue.parts[1].options[1], NULL);
 }
 
 /* condition_met: condition receives context and returns context.conditionShouldPass */
 void test_condition_met_receives_context(void) {
-    read_lua_dialogue(&system, "tests/fixtures/with_condition_effect.lua", test_context_index,
+    read_lua_dialogue(&dialogue, "tests/fixtures/with_condition_effect.lua", test_context_index,
                       test_context_newindex);
     system_loaded = true;
 
     /* Option "Condition sets flag" is index 3 (options[3]); returns context.conditionShouldPass */
     TestContext ctx_pass = {.effectCalled = false, .conditionShouldPass = true};
-    bool result_pass = condition_met(&system, &system.parts[0].options[3], &ctx_pass);
+    bool result_pass = condition_met(&dialogue, &dialogue.parts[0].options[3], &ctx_pass);
     TEST_ASSERT_TRUE(result_pass);
 
     TestContext ctx_fail = {.effectCalled = false, .conditionShouldPass = false};
-    bool result_fail = condition_met(&system, &system.parts[0].options[3], &ctx_fail);
+    bool result_fail = condition_met(&dialogue, &dialogue.parts[0].options[3], &ctx_fail);
     TEST_ASSERT_FALSE(result_fail);
 }
 
 /* invoke_effect: effect receives context and can set flags */
 void test_invoke_effect_receives_context(void) {
-    read_lua_dialogue(&system, "tests/fixtures/with_condition_effect.lua", test_context_index,
+    read_lua_dialogue(&dialogue, "tests/fixtures/with_condition_effect.lua", test_context_index,
                       test_context_newindex);
     system_loaded = true;
     TestContext ctx = {.effectCalled = false};
 
-    invoke_effect(&system, &system.parts[1].options[1], &ctx);
+    invoke_effect(&dialogue, &dialogue.parts[1].options[1], &ctx);
 
     TEST_ASSERT_TRUE(ctx.effectCalled);
 }
