@@ -18,9 +18,15 @@ typedef struct DialoguePart {
     DialogueResponse *options;
 } DialoguePart;
 
+typedef struct DialoguePartBucket {
+    struct DialoguePartBucket *next;
+    DialoguePart dialoguePart;
+} DialoguePartBucket;
+
+#define MAX_PART_POOLS_SIZE 64
+
 typedef struct Dialogue {
-    int partsCount;
-    DialoguePart *parts;
+    DialoguePartBucket *partBuckets[MAX_PART_POOLS_SIZE];
     lua_State *luaState;
 
     DialoguePart *currentPart;
@@ -29,6 +35,7 @@ typedef struct Dialogue {
 typedef enum DialoguesError {
     DIALOGUE_OK,
     DIALOGUE_NOT_FOUND,
+    DIALOGUE_PART_NOT_FOUND
 } DialoguesError;
 
 DialoguesError read_lua_dialogue(Dialogue *dialogue, const char *filename,
@@ -36,4 +43,5 @@ DialoguesError read_lua_dialogue(Dialogue *dialogue, const char *filename,
 void free_dialogue(Dialogue *dialogue);
 bool condition_met(Dialogue *dialogue, DialogueResponse *response, void *context);
 void invoke_effect(Dialogue *dialogue, DialogueResponse *response, void *context);
-void goto_part(Dialogue *dialogue, const char *stageId);
+DialoguesError goto_part(Dialogue *dialogue, const char *stageId);
+void free_bucket(DialoguePartBucket *bucket);

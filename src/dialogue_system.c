@@ -5,6 +5,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define HASH_MULTIPLIER 31
+
+unsigned int hash(const char *key) {
+    unsigned int hashedIndex = 0;
+    while (*key) {
+        hashedIndex = (hashedIndex * HASH_MULTIPLIER) + *key++;
+    }
+    return hashedIndex % MAX_PART_POOLS_SIZE;
+}
+
 static void read_option(DialogueResponse *response, lua_State *luaState) {
     response->nextId = NULL;
 
@@ -39,9 +49,27 @@ static void read_option(DialogueResponse *response, lua_State *luaState) {
     }
 }
 
-static void read_part(DialoguePart *part, lua_State *luaState) {
+static void read_part(Dialogue *dialogue, lua_State *luaState) {
     lua_getfield(luaState, -1, "id");
     const char *partId = lua_tostring(luaState, -1);
+
+    DialoguePartBucket *newBucket;
+
+    unsigned int hashedKey = hash(partId);
+    if (dialogue->partBuckets[hashedKey]) {
+        DialoguePartBucket *bucket = dialogue->partBuckets[hashedKey];
+        while (bucket->next) {
+            bucket = bucket->next;
+        }
+        bucket->next = malloc(sizeof(DialoguePartBucket));
+        newBucket = bucket->next;
+    } else {
+        dialogue->partBuckets[hashedKey] = malloc(sizeof(DialoguePartBucket));
+        newBucket = dialogue->partBuckets[hashedKey];
+    }
+    memset(newBucket, 0, sizeof(DialoguePartBucket));
+
+    DialoguePart *part = &newBucket->dialoguePart;
     part->id = (char *)malloc(strlen(partId) + 1);
     strcpy(part->id, partId);
     lua_pop(luaState, 1);
@@ -87,14 +115,13 @@ DialoguesError read_lua_dialogue(Dialogue *dialogue, const char *filename,
     }
 
     luaL_checktype(dialogue->luaState, -1, LUA_TTABLE);
-    dialogue->partsCount = (int)luaL_len(dialogue->luaState, -1);
-    dialogue->parts = malloc(sizeof(DialoguePart) * dialogue->partsCount);
+    int partsCount = (int)luaL_len(dialogue->luaState, -1);
 
     // Lua tables start from 1
-    for (int i = 1; i <= dialogue->partsCount; i++) {
+    for (int i = 1; i <= partsCount; i++) {
         lua_geti(dialogue->luaState, -1, i);
 
-        read_part(&dialogue->parts[i - 1], dialogue->luaState);
+        read_part(dialogue, dialogue->luaState);
 
         lua_pop(dialogue->luaState, 1);
     }
@@ -104,23 +131,9 @@ DialoguesError read_lua_dialogue(Dialogue *dialogue, const char *filename,
 
 void free_dialogue(Dialogue *dialogue) {
     lua_close(dialogue->luaState);
-    for (int i = 0; i < dialogue->partsCount; i++) {
-        DialoguePart *part = &dialogue->parts[i];
-
-        for (int j = 0; j < part->optionsCount; j++) {
-            DialogueResponse *option = &part->options[j];
-            free(option->text);
-            if (option->nextId != NULL) {
-                free(option->nextId);
-            }
-        }
-
-        free(part->options);
-        free(part->id);
-        free(part->text);
+    for (int i = 0; i < MAX_PART_POOLS_SIZE; i++) {
+        free_bucket(dialogue->partBuckets[i]);
     }
-
-    free(dialogue->parts);
 }
 
 bool condition_met(Dialogue *dialogue, DialogueResponse *response, void *context) {
@@ -134,13 +147,14 @@ bool condition_met(Dialogue *dialogue, DialogueResponse *response, void *context
     lua_setmetatable(dialogue->luaState, -2);
 
     if (lua_pcall(dialogue->luaState, 1, 1, 0) != LUA_OK) {
-        printf("Condition error");
+        printf("Condition error: %s", lua_tostring(dialogue->luaState, -1));
+        lua_pop(dialogue->luaState, 1);
+        return false;
     }
 
-    bool condition_condition_result = (bool)lua_toboolean(dialogue->luaState, -1);
+    bool result = (bool)lua_toboolean(dialogue->luaState, -1);
     lua_pop(dialogue->luaState, 1);
-
-    return condition_condition_result;
+    return result;
 }
 
 void invoke_effect(Dialogue *dialogue, DialogueResponse *response, void *context) {
@@ -153,17 +167,47 @@ void invoke_effect(Dialogue *dialogue, DialogueResponse *response, void *context
     luaL_getmetatable(dialogue->luaState, "GameContext");
     lua_setmetatable(dialogue->luaState, -2);
 
-    if (lua_pcall(dialogue->luaState, 1, 1, 0) != LUA_OK) {
-        printf("Effect error");
+    if (lua_pcall(dialogue->luaState, 1, 0, 0) != LUA_OK) {
+        printf("Effect error: %s", lua_tostring(dialogue->luaState, -1));
+        lua_pop(dialogue->luaState, 1);
     }
-
-    lua_pop(dialogue->luaState, 1);
 }
 
-void goto_part(Dialogue *dialogue, const char *stageId) {
-    for (int i = 0; i < dialogue->partsCount; i++) {
-        if (strcmp(stageId, dialogue->parts[i].id) == 0) {
-            dialogue->currentPart = &dialogue->parts[i];
-        }
+DialoguesError goto_part(Dialogue *dialogue, const char *stageId) {
+    if (!stageId) {
+        return DIALOGUE_PART_NOT_FOUND;
     }
+
+    unsigned int bucketId = hash(stageId);
+    DialoguePartBucket *bucket = dialogue->partBuckets[bucketId];
+    while (bucket) {
+        if (bucket && bucket->dialoguePart.id && strcmp(bucket->dialoguePart.id, stageId) == 0) {
+            dialogue->currentPart = &bucket->dialoguePart;
+            return DIALOGUE_OK;
+        }
+        bucket = bucket->next;
+    }
+
+    return DIALOGUE_PART_NOT_FOUND;
+}
+
+void free_bucket(DialoguePartBucket *bucket) {
+    if (!bucket) {
+        return;
+    }
+    if (bucket->next) {
+        free_bucket(bucket->next);
+    }
+
+    DialoguePart *part = &bucket->dialoguePart;
+    free(part->id);
+    free(part->text);
+
+    for (int i = 0; i < part->optionsCount; i++) {
+        free(part->options[i].text);
+        free(part->options[i].nextId);
+    }
+    free(part->options);
+
+    free(bucket);
 }
