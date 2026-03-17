@@ -28,8 +28,6 @@ typedef struct DialoguePartBucket {
 typedef struct Dialogue {
     DialoguePartBucket *partBuckets[MAX_PART_POOLS_SIZE];
     lua_State *luaState;
-
-    DialoguePart *currentPart;
 } Dialogue;
 
 typedef enum DialoguesError {
@@ -43,5 +41,5 @@ DialoguesError read_lua_dialogue(Dialogue *dialogue, const char *filename,
 void free_dialogue(Dialogue *dialogue);
 bool condition_met(Dialogue *dialogue, DialogueResponse *response, void *context);
 void invoke_effect(Dialogue *dialogue, DialogueResponse *response, void *context);
-DialoguesError goto_part(Dialogue *dialogue, const char *stageId);
+DialoguePart *find_part(Dialogue *dialogue, const char *stageId);
 void free_bucket(DialoguePartBucket *bucket);

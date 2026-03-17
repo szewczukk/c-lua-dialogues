@@ -173,22 +173,21 @@ void invoke_effect(Dialogue *dialogue, DialogueResponse *response, void *context
     }
 }
 
-DialoguesError goto_part(Dialogue *dialogue, const char *stageId) {
+DialoguePart *find_part(Dialogue *dialogue, const char *stageId) {
     if (!stageId) {
-        return DIALOGUE_PART_NOT_FOUND;
+        return NULL;
     }
 
     unsigned int bucketId = hash(stageId);
     DialoguePartBucket *bucket = dialogue->partBuckets[bucketId];
     while (bucket) {
-        if (bucket && bucket->dialoguePart.id && strcmp(bucket->dialoguePart.id, stageId) == 0) {
-            dialogue->currentPart = &bucket->dialoguePart;
-            return DIALOGUE_OK;
+        if (strcmp(bucket->dialoguePart.id, stageId) == 0) {
+            return &bucket->dialoguePart;
         }
         bucket = bucket->next;
     }
 
-    return DIALOGUE_PART_NOT_FOUND;
+    return NULL;
 }
 
 void free_bucket(DialoguePartBucket *bucket) {
